@@ -18,9 +18,6 @@ fn main() {
     unsafe { blst::blst_bendian_from_scalar(&mut sk_be[0], &sk_scalar) };
     let sk_scalar_be = blst_scalar { b: sk_be };
 
-    let mut sk_fr: blst_fr = Default::default();
-    unsafe { blst::blst_fr_from_scalar(&mut sk_fr, &sk_scalar) };
-
 // Mint: Create Signer PK
     // ￼# Signer's public key
     // let PK = blst.P1(SK).to_affine()
@@ -86,6 +83,7 @@ fn main() {
     let mut user_sig: blst_p2 = Default::default();
     unsafe { blst::blst_p2_from_affine(&mut user_sig, &user_sig_affine) };
 
+    // note: we sign with bigendian sk
     let mut mint_sig: blst_p2 = Default::default();
     unsafe { blst::blst_sign_pk_in_g1(&mut mint_sig, &user_sig, &sk_scalar_be) };
 
