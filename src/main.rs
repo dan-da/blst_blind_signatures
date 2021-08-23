@@ -2,21 +2,13 @@ use blst::min_pk::SecretKey;
 use blst::{blst_fr, blst_p1_affine, blst_p2, blst_p2_affine, blst_scalar, Pairing};
 
 fn main() {
-    // ￼########################################################################
-    // ￼# rudimentary blind signature PoC
-    //
+// ￼########################################################################
+// ￼# rudimentary blind signature PoC
 
-    let msg = b"assertion"; // this what we're signing
-    let dst = b"MY-DST"; // domain separation tag
-
+// Mint: Generate Secret Key for signing
     let ikm = b"********************************"; // non-random for now.
     let ki = b"";
-
-    // Mint: Generate Secret Key for signing
     let sk_rust = SecretKey::key_gen(ikm, ki).unwrap();
-
-    // let ikm = b"********************************";   // non-random for now.
-    // let sk_scalar_ikm = blst_scalar { b: *ikm };
 
     let sk_scalar = blst_scalar {
         b: sk_rust.to_bytes(),
@@ -25,30 +17,15 @@ fn main() {
     let mut sk_be: [u8; 32] = Default::default();
     unsafe { blst::blst_bendian_from_scalar(&mut sk_be[0], &sk_scalar) };
     let sk_scalar_be = blst_scalar { b: sk_be };
-    // println!("sk_scalar_be: {:?}", sk_scalar_be);
 
     let mut sk_fr: blst_fr = Default::default();
     unsafe { blst::blst_fr_from_scalar(&mut sk_fr, &sk_scalar) };
 
-    // println!("sk_scalar: {:?}", sk_scalar);
-    // println!("sk_rust: {:?}", sk_rust);
-    // println!("sk_rust bytes: {:?}", sk_rust.serialize());
-
-    // let mut sk_affine: blst_p1_affine = Default::default();
-    // let result = unsafe { blst::blst_p1_from_fr(&mut sk_affine, &sk_fr ) };
-    // println!("result: {:?}", result);
-
-    // let mut sk: blst_p1 = Default::default();
-    // unsafe { blst::blst_p1_from_affine(&mut sk, &sk_affine) };
-
-    // println!("sk: {:?}", sk);
-
-    // Mint: Create Signer PK
+// Mint: Create Signer PK
     // ￼# Signer's public key
     // let PK = blst.P1(SK).to_affine()
 
     let pk_rust = sk_rust.sk_to_pk();
-    // println!("pk_rust: {:?}", pk_rust.serialize());
 
     let pk_bytes = pk_rust.serialize();
 
@@ -61,7 +38,7 @@ fn main() {
     println!("SK: {:?}", sk_scalar);
     println!("PK: {:?}", pk_bytes2);
 
-    // User: Generate random r  (blinding factor)
+// User: Generate random r  (blinding factor)
     // ￼# User wants to have |msg| signed, chooses random |r|,
     // ￼r = blst.Scalar().from_bendian(os.urandom(32))
 
@@ -69,7 +46,11 @@ fn main() {
     let r = blst_scalar { b: *r_bytes };
     println!("{:?}", r.b);
 
-    // User: Hash message and blind it with r.
+// User: generate message and DST
+    let msg = b"assertion"; // this what we're signing
+    let dst = b"MY-DST"; // domain separation tag
+
+// User: Hash message and blind it with r.
     // ￼# blinds the H(|msg|) with |r| and sends it to the Signer.
     // ￼sig_for_wire = blst.P2().hash_to(msg, DST).sign_with(r).serialize()
 
@@ -87,10 +68,6 @@ fn main() {
         )
     };
 
-    // let mut hash_bytes: Vec<u8> = vec![0; 192];
-    // unsafe { blst::blst_p2_serialize(&mut hash_bytes[0], &hash) };
-    // println!("hash: {:?}", hash_bytes);
-
     let mut sig: blst_p2 = Default::default();
     unsafe { blst::blst_sign_pk_in_g1(&mut sig, &hash, &r) };
     let mut sig_for_wire: Vec<u8> = vec![0; 192];
@@ -98,7 +75,7 @@ fn main() {
 
     println!("sig_for_wire: {:?}", sig_for_wire);
 
-    // Mint: Sign message
+// Mint: Sign message
     // ￼# Signer signs and sends the result back to the User.
     // ￼sig_for_wire = blst.P2(sig_for_wire).sign_with(SK).serialize()
 
@@ -117,7 +94,7 @@ fn main() {
 
     println!("mint_sig_for_wire: {:?}", mint_sig_for_wire);
 
-    // User: Unblind and obtain mint's signature.
+// User: Unblind and obtain mint's signature.
     // ￼# User unblinds the result with 1/|r| to produce the actual |signature|,
     // ￼signature = blst.P2(sig_for_wire).sign_with(r.inverse()).to_affine()
 
@@ -145,7 +122,7 @@ fn main() {
 
     println!("signature_inverse: {:?}", sig_inverse);
 
-    // User: verify mint's signature.
+// User: verify mint's signature.
     // ￼# and now it can be verified as following...
     // ￼ctx = blst.Pairing(True, DST)
     // ￼ctx.aggregate(PK, signature, msg)
@@ -155,6 +132,9 @@ fn main() {
     // ￼
     // ￼print("OK")
 
+    // must be affine, not blst_p2.  took me hours to figure this out because
+    // Pairing::aggregate() accepts blst_p2 without complaint but ignores it
+    // and python code somehow avoids this step.
     let mut sig_affine: blst_p2_affine = Default::default();
     unsafe { blst::blst_p2_to_affine(&mut sig_affine, &signature) };
     println!("sig_affine: {:?}", sig_affine);
@@ -169,17 +149,5 @@ fn main() {
         panic!("disaster");
     }
 
-    // let mut ctx: blst_pairing = Default::default();
-    // unsafe { blst::blst_pairing_init(&mut ctx, true, dst.as_ptr(), dst.len()) };
-
-    // let rc = unsafe { blst::blst_pairing_aggregate_pk_in_g1(&mut ctx, &pk, &sig_affine, msg.as_ptr(), msg.len(), aug.as_ptr(), aug.len()) };
-    // println!("rc: {:?}", rc);
-    // unsafe { blst::blst_pairing_commit(&mut ctx)};
-
-    // let ok = unsafe { blst::blst_pairing_finalverify(&mut ctx, std::ptr::null()) };
-    // if !ok {
-    //      panic!("disaster");
-    // }
-
-    println!("OK");
+    println!("OK - client verified mint's blind sig");
 }
